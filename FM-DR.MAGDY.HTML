@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار ذكي</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        :root { --primary-color: #5145BA; --success-color: #28a745; --error-color: #dc3545; --bg-color: #f4f4f9; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background: var(--primary-color); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .container { background: white; width: 100%; max-width: 570px; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: none; }
+        .container.active { display: block; }
+        h2 { color: var(--primary-color); margin-bottom: 20px; text-align: center; }
+        .setting-group { margin-bottom: 20px; }
+        .group-label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 0.95rem; }
+        .grid-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .chip { padding: 10px; border: 2px solid #ddd; background: white; cursor: pointer; border-radius: 8px; transition: 0.3s; text-align: center; font-weight: 500;}
+        .chip.active { border-color: var(--primary-color); background: #EEF2FF; color: var(--primary-color); font-weight: 900; }
+        input { width: 100%; padding: 12px; border: 2px solid #EDF2F7; border-radius: 12px; font-size: 1rem; margin-top: 5px; outline: none; }
+        .max-hint { display: block; font-size: 0.8rem; color: #718096; margin-top: 5px; }
+        .start-btn { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 15px; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        .question-block { margin-bottom: 25px; }
+        .question-text { font-size: 1.2rem; margin-bottom: 20px; color: #444; font-weight: bold; line-height: 1.4; }
+        .option-item { padding: 14px; border: 2px solid #EDF2F7; margin-bottom: 10px; border-radius: 12px; cursor: pointer; }
+        .option-item.correct { background: #C6F6D5; border-color: #48BB78; color: #22543D; }
+        .option-item.incorrect { background: #FED7D7; border-color: #F56565; color: #742A2A; }
+        .option-item.selected-temp { border-color: var(--primary-color); background: #EBF4FF; }
+        .locked { pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="setup-screen" class="container active">
+        <h2>إعداد الاختبار</h2>
+        <div class="setting-group">
+            <span class="group-label">اختر القسم:</span>
+            <div class="grid-options" id="category-selector">
+                <button class="chip active" data-value="all">المنهج كامل</button>
+                <button class="chip" data-value="gen">دراسات متقدمة - تمويل - د مجدى طايل</button>
+
+            </div>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">نظام الأسئلة:</span>
+            <div class="chip-grid" id="order-selector">
+                <button class="chip active" data-value="fixed">ثابت (كل اسئلة القسم المختار)</button>
+                <button class="chip" data-value="random">ترتيب عشوائى (ادخل عدد الاسئلة)</button>
+            </div>
+        </div>
+        <div id="num-section" class="setting-group" style="display: none;">
+            <span class="group-label">العدد:</span>
+            <input type="number" id="num-input">
+            <span class="max-hint" id="max-label"></span>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">النمط:</span>
+            <div class="chip-grid" id="mode-combined">
+                <button class="chip active" data-value="exam_all">اختبار (كل الاسئلة فى ورقة واحدة)</button>
+                <button class="chip" data-value="study_one">مذاكرة (عرض سؤال بسؤال)</button>
+            </div>
+        </div>
+        <button class="start-btn" onclick="initQuiz()">ابدأ المراجعة</button>
+    </div>
+
+    <div id="quiz-screen" class="container">
+        <div id="quiz-content"></div>
+        <button id="submit-btn" class="start-btn" style="display:none" onclick="handleFullSubmit()">إنهاء</button>
+        <button id="next-btn" class="start-btn" style="display:none" onclick="nextQuestion()">التالي</button>
+        <p id="q-counter" style="text-align:center; margin-top:10px;"></p>
+    </div>
+
+    <div id="result-screen" class="container">
+        <h2 id="res-title">النتيجة</h2>
+        <p id="res-msg" style="text-align:center; font-size:1.5rem;"></p>
+        <div id="mistakes-report"></div>
+        <button class="start-btn" onclick="location.reload()">العودة</button>
+    </div>
+
+    <script>
+        const db = [{"cat":"gen","q":"تنقسم الأسواق المالية الى نوعين رئيسيين من الأسواق هما سوق النقد وسوق رأس المال","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يتمثل سوق النقد في الجهاز المصرفي ويتم فيه تداول أدوات مالية قصيرة الأجل نسبيا","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"من ابرز الأدوات المالية قصيرة الأجل نسبيا التي يتم تداولها في سوق النقد اذون الخزانة والأوراق المالية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"سوق رأس المال يتم فيه تداول أدوات مالية طويلة الأجل نسبيا","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الأسهم والسندات من ابرز الأدوات المالية طويلة الأجل التي يتم تداولها في سوق رأس المال","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"سوق النقد هي السوق التي يتم فيها التعامل على الأوراق المالية كالأسهم والسندات بيعا وشراءا","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"سعر السوق لا يتحدد بناءا على اليات العرض والطلب في سوق الأوراق المالية","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"بورصة الأوراق المالية هي سوق منظم يتم فيها عمليات الشراء والبيع وتكون السلعه المتداولة فيها الأوراق المالية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يتم التعامل بشكل مباشر بين المستثمرين بيعا وشراءا في سوق الأوراق المالية وليس من خلال وسطاء","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يطلق على الوسطاء في سوق الأوراق المالية بشركات السمسرة وهم مؤهلين لأعمال الوساطة","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تتم الصفقات في سوق الأوراق المالية بين السماسره من خلال نظام تداول الكترونى يتلقى جميع أوامر البيع والشراء","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"السوق الثانوية هي السوق التي تصدر وتباع فيها الورقة المالية لأول مرة عند اصدار الشركة اسهم","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يوجد نوعان رئيسيان من الأوراق المالية التي تتداول في سوق الأوراق المالية المصرى هما الأسهم والسندات","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يعتبر السند صك ملكية بينما السهم صك مديونية","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"حملة السندات هم مالك الشركة وأصحاب راس المال بينما حملة الأسهم هم دائنون للشركة","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يحصل حملة الأسهم على نسبة توزيع أرباح غير ثابتة بينما يحصل حملة السندات على فوائد ثابتة","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يحق لحملة الأسهم حضور الجمعية العمومية والتصويت والإطلاع على دفاتر وسجلات الشركه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"لا يحق لحملة السندات حضور الجمعية العمومية والتصويت والإطلاع على دفاتر وسجلات الشركه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يحصل حملة السندات عند التصفية على ما تبقى بعد سداد حقوق حملة الأسهم","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"لحملة الأسهم الأولوية في الحصول على مستحقاتهم قبل حملة السندات","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الاسهم نوعان اسهم عادية واسهم ممتازة بينما السندات نوعان سندات برهن وسندات بدون رهن","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"قامت البورصة بتصميم مؤشر لقياس نشاط التداول هو30EGX لقياس نشاط اقل 30 شركة في عملية التداول","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"المقصود بسوق خارج المقصورة هو الشركات المقيده بالبورصة ويتم التداول عليها","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تبدأ دورة حياة الورقة المالية في سوق الأوراق المالية بمرحلة الإصدار (سوق الإصدار)","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"المرحلة الثانية من مراحل دورة حياة الورقة المالية هي مرحلة قيد الإصدارات لدى الجهات ذاتية التنظيم","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تنتهى دورة حياة الورقة المالية متمثلة بتخفيض رأس المال أو عمليات دمج الشركات أو عمليات التصفية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"المصدر للورقة المالية هو شخص اعتبارى عام او شخص اعتبارى خاص","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تتكون اطراف عملية الإصدار من المصدرين ووسيط الإصدار والمستثمرين الماليين (حملة الأوراق المالية)","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الإكتتاب العام يخاطب افراد او مؤسسات محددة لديه سلفا اى انه لا يخاطب الجمهور العام","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الإكتتاب الخاص لا يكون قاصرا على حملة الأسهم الحاليين","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الإكتتاب المغلق يكون قاصرا على كبار المؤسسين او المساهمين","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"في حالة الإكتتاب العام يتم الإكتتاب بناءا على نشرة الإكتتاب القانونية والمراجعة من الجهه الرقابية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"في حالة الإكتتاب الخاص يتم الإكتتاب بناءا على مذكرة معلومات يتم تقديمها للمستثمرين المرتقبين لدراستها","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"في الإكتتاب المغلق يتم الإكتتاب بناءا على طلب تأسيس الشركة مرفقا به مشروع العقد والنظام الأساسي للشركة","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"في حال عدم تغطية الإصدار بالكامل لا يتم الإلغاء او الإكتفاء بما تم تغطيته","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"حالة تغطية الإصدار بالكامل هي الحالة الغير مرغوب فيها من المصدر","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"حالة تغطية الإصدار بأكثر من الكمية المطلوبة هى الحالة المرغوب فيها من المصدر","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"عمليات التخصيص في حالة الإكتتاب العام تتم على أساس النسبة والتناسب طبقا لما تم نشره في نشرة الإكتتاب","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"التخصيص في حالة الإكتتاب الخاص يتم بحسب رغبة المؤسسين والمستثمرين او المزايدة طبقا لمذكرة المعلومات","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"مخالفات وجرائم المعلومات المرتبطة بالجهات والشركات المصدرة هي احد مخالفات وجرائم أسواق الأوراق المالية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"احد مخالفات وجرائم أسواق الأوراق المالية هي مخالفات خاصة بعمليات التقييم المغالى فيه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الإستثمار المالى هو التخلى عن اموال يمتلكها الفرد لفترة معينه بقصد الحصول على تدفقات مالية مستقبلية تعوضه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"ينقسم المتعاملون فى الأوراق المالية الى قسمين اساسيين هما المستثمر المؤسسى والمستثمر الفرد","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"المستثمر الفرد عبارة عن مؤسسات مالية متخصصة فى تجميع وادارة المدخرات الخاصة بالمستثمرين","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تهدف فئة المضاربون المحترفون الى تحقيق اكبر عائد ممكن فى اقل فترة ممكنه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"لا يقصد بالمستثمرون الفئه التى توظف اموالها فى شراء الأوراق المالية لتحقيق االرباح على المدى الطويل","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"المستثمر الخارجى هو المستثمر الذى يهدف الى السيطرة على الشركة وادارتها من خلال تملك عدد كبير من الأسهم","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"المستثمر العادى نوع من المستثمرين يشترى الأوراق المالية للحصول على عائد جارى او تحقيق ارباح","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تنقسم الدوافع العامه للإستثمار فى الأوراق المالية الى دوافع الإستثمار والمضاربة والترقب والإنسحاب","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تتمثل دوافع الإستثمار فى الأوراق المالية فى شراء الأوراق المالية والإحتفاظ بها","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"دوافع الترقب هى شراء الأوراق المالية واعادة بيعها للإستفادة من فرق الأسعار","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"دوافع المضاربه تعنى رصد حركة السوق والإنتظار","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"دوافع الإنسحاب من سوق الأوراق المالية تعنى التصفية والخروج من السوق","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"احد الأهداف الإستثماريه لصغار المستثمرين هى تحقيق دخل جارى","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تحقيق عائد جارى متوسط مع زيادة فى قيمة رأس المال هو أحد اهداف الإستثمار لصغار المستثمرين","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تحقيق مكاسب رأس مالية مع تحقيق أقصى نمو ممكن لرأس المال ليس هدفا لصغار المستثمرين","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يمكن تقسيم صغار المستثمرين على اساس المنفعة الى مستثمر يسعى لتحقيق الدخل ومستثمر يسعى لتحقيق النمو","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تتكون عملية الإستثمار فى الأوراق المالية من خمس مراحل وخطوات رئيسيه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الخطوة الأولى من خطوات عملية الإستثمار فى الأوراق المالية هى وضع سياسة الإستثمار","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تحليل الأوراق المالية هى الخطوة الأخيرة من خطوات عملية الإستثمار فى الأوراق المالية","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"التحليل الأساسى للأوراق المالية يهتم بدراسة الظروف المحيطة بالمنظمة الإقتصادية والصناعية","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"التحليل الفنى للأوراق المالية يتم من خلال تتبع حركة اسعار الأسهم فى الماضى للتنبؤ باسعارها فى المستقبل","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"بناء المحفظه هى الخطوة الثالثة من خطوات عملية الإستثمار وتتضمن التعرف على الأصول الواجب الإستثمار فيها","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الخطوة الرابعة من خطوات عملية الإستثمار هى مراجعة المحقظة وتتم بشكل دورى للتأكد من تحقيق الأهداف","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تقييم اداء المحفظة هى الخطوة الخامسة والأخيرة من من خطوات عملية الإستثمار","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تعد استراتيجية الإستثمار بمثابة الإطار العام الذى يحدد الوسائل المتاحة لتحقيق الأهداف الإستثمارية السابق تحديدها","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تعتبر استراتيجية الشراء والإحتفاظ من انسب الإستراتيجيات الإستثمارية المتاحة امام مستثمر الدخل","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"القيمة السوقية للسهم هى القيمة التى يصدر بها السهم عند التأسيس","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"القيمة الدفترية للسهم هى نصيب السهم الواحد فى حقوق المساهمين (حقوق الملكية) أو صافى الأصول","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"القيمة الإسمية للسهم هى اخر سعر اقفال مسجل للتداول على السهم بالبورصه","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"سعر تداول السهم اليومى هو عبارة عن المدى السعرى الذى تم التنفيذ به لعمليات التداول خلال الجلسة","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تحتسب ربحية السهم الواحد من خلال قسمة صافى الربح القابل للتوزيع على عدد الأسهم المصدرة","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"سيولة السهم هى عبارة عن امكانية تحويل السهم الى نقدية بسرعة وبأقل تكلفة وبسعر يقارب اخر سعر للتداول","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"المقصود بتجزئة القيمة الإسمية للسهم هو قيام الشركة بتقسيم اسهمها الحالية وتفتيتها الى عدد اكبر من الأسهم","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"فى حالة التجزئة القيمة الإسمية للسهم ترتفع وفقا لعدد االجزاء التى يتم القسمة عليها","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"القيمة السوقية للسهم ترتفع في حالة التجزئه وفقا لعدد الأجزاء التى يتم القسمة عليها","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"رأس المال المصدر والمدفوع يظل كما هو في حالة التجزئه ولا يتاثر بالتجزأه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"فى حالة التجزئة صافى الأرباح السنوية يقل ويؤثر على ارباح الشركة","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"القيمة الدفتريه للسهم الواحد تنخفض نتيجة لزيادة عدد الأسهم بعد التجزئه","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"ربحية السهم الواحد ترتفع نتيجة لزيادة عدد الأسهم بعد التجزئة","opts":["صح","خطأ"],"ans":1}];
+        let state = { category: "all", order: "fixed", mode: "exam", view: "all", questions: [], score: 0, currentIdx: 0, mistakes: [] };
+
+        function updateMaxHint() {
+            const pool = (state.category === 'all') ? db : db.filter(q => q.cat === state.category);
+            document.getElementById('max-label').textContent = "المتاح: " + pool.length;
+            document.getElementById('num-input').max = pool.length;
+            document.getElementById('num-input').value = pool.length;
+        }
+
+        document.querySelectorAll('.chip').forEach(btn => {
+            btn.onclick = function() {
+                this.parentElement.querySelector('.active').classList.remove('active');
+                this.classList.add('active');
+                const val = this.dataset.value;
+                const pid = this.parentElement.id;
+                if(pid === 'category-selector') { state.category = val; updateMaxHint(); }
+                if(pid === 'order-selector') { 
+                    state.order = val; 
+                    document.getElementById('num-section').style.display = (val === 'random') ? 'block' : 'none';
+                    updateMaxHint();
+                }
+                if(pid === 'mode-combined') {
+                    state.mode = val.includes('exam') ? 'exam' : 'study';
+                    state.view = val.includes('all') ? 'all' : 'one';
+                }
+            };
+        });
+        updateMaxHint();
+
+        function initQuiz() {
+            let pool = (state.category === 'all') ? [...db] : db.filter(q => q.cat === state.category);
+            let num = (state.order === 'fixed') ? pool.length : (parseInt(document.getElementById('num-input').value) || pool.length);
+            if(state.order === 'random') pool.sort(() => Math.random() - 0.5);
+            state.questions = pool.slice(0, num);
+            document.getElementById('setup-screen').classList.remove('active');
+            document.getElementById('quiz-screen').classList.add('active');
+            if(state.view === 'all') renderAll(); else showOne();
+        }
+
+        function renderAll() {
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '';
+            state.questions.forEach((q, idx) => {
+                const block = document.createElement('div');
+                block.className = 'question-block';
+                block.innerHTML = '<div class="question-text">'+(idx+1)+'. '+q.q+'</div>';
+                const optsDiv = document.createElement('div');
+                q.opts.forEach((opt, oIdx) => {
+                    const div = document.createElement('div');
+                    div.className = 'option-item'; div.textContent = opt;
+                    div.onclick = () => {
+                        if(optsDiv.classList.contains('locked')) return;
+                        if(state.mode === 'study') {
+                            optsDiv.classList.add('locked');
+                            if(oIdx === q.ans) div.classList.add('correct');
+                            else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); }
+                        } else {
+                            optsDiv.querySelectorAll('.option-item').forEach(s => s.classList.remove('selected-temp'));
+                            div.classList.add('selected-temp');
+                        }
+                        q.userAns = oIdx;
+                    };
+                    optsDiv.appendChild(div);
+                });
+                block.appendChild(optsDiv);
+                cont.appendChild(block);
+            });
+            document.getElementById('submit-btn').style.display = 'block';
+        }
+
+        function showOne() {
+            const q = state.questions[state.currentIdx];
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '<div class="question-text">'+q.q+'</div><div id="opts"></div>';
+            document.getElementById('q-counter').textContent = 'سؤال ' + (state.currentIdx+1) + ' من ' + state.questions.length;
+            q.opts.forEach((opt, i) => {
+                const div = document.createElement('div');
+                div.className = 'option-item'; div.textContent = opt;
+                div.onclick = () => {
+                    const optsDiv = document.getElementById('opts');
+                    if(optsDiv.classList.contains('locked')) return;
+                    optsDiv.classList.add('locked');
+                    if(i === q.ans) { div.classList.add('correct'); state.score++; }
+                    else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); state.mistakes.push({q:q.q, a:q.opts[q.ans]}); }
+                    document.getElementById('next-btn').style.display = 'block';
+                };
+                document.getElementById('opts').appendChild(div);
+            });
+        }
+
+        function nextQuestion() {
+            state.currentIdx++;
+            if(state.currentIdx < state.questions.length) { showOne(); document.getElementById('next-btn').style.display='none'; }
+            else showResult();
+        }
+
+        function handleFullSubmit() {
+            if(state.mode === 'exam') {
+                state.score = 0; state.mistakes = [];
+                state.questions.forEach(q => {
+                    if(q.userAns === q.ans) state.score++;
+                    else state.mistakes.push({q:q.q, a:q.opts[q.ans]});
+                });
+            }
+            showResult();
+        }
+
+        function showResult() {
+            document.getElementById('quiz-screen').classList.remove('active');
+            document.getElementById('result-screen').classList.add('active');
+            document.getElementById('res-msg').textContent = state.score + " / " + state.questions.length;
+            const report = document.getElementById('mistakes-report');
+            report.innerHTML = state.mistakes.map(m => '<div style="background:#FFF5F5; padding:10px; margin-bottom:10px; border-radius:8px; border-right:4px solid #F56565"><b>س:</b> '+m.q+'<br><span style="color:green"><b>الصح:</b> '+m.a+'</span></div>').join('');
+        }
+    </script>
+</body>
+</html>

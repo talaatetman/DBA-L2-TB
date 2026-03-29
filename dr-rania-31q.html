@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار ذكي</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        :root { --primary-color: #5145BA; --success-color: #28a745; --error-color: #dc3545; --bg-color: #f4f4f9; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background: var(--primary-color); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .container { background: white; width: 100%; max-width: 570px; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: none; }
+        .container.active { display: block; }
+        h2 { color: var(--primary-color); margin-bottom: 20px; text-align: center; }
+        .setting-group { margin-bottom: 20px; }
+        .group-label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 0.95rem; }
+        .grid-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .chip { padding: 10px; border: 2px solid #ddd; background: white; cursor: pointer; border-radius: 8px; transition: 0.3s; text-align: center; font-weight: 500;}
+        .chip.active { border-color: var(--primary-color); background: #EEF2FF; color: var(--primary-color); font-weight: 900; }
+        input { width: 100%; padding: 12px; border: 2px solid #EDF2F7; border-radius: 12px; font-size: 1rem; margin-top: 5px; outline: none; }
+        .max-hint { display: block; font-size: 0.8rem; color: #718096; margin-top: 5px; }
+        .start-btn { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 15px; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        .question-block { margin-bottom: 25px; }
+        .question-text { font-size: 1.2rem; margin-bottom: 20px; color: #444; font-weight: bold; line-height: 1.4; }
+        .option-item { padding: 14px; border: 2px solid #EDF2F7; margin-bottom: 10px; border-radius: 12px; cursor: pointer; }
+        .option-item.correct { background: #C6F6D5; border-color: #48BB78; color: #22543D; }
+        .option-item.incorrect { background: #FED7D7; border-color: #F56565; color: #742A2A; }
+        .option-item.selected-temp { border-color: var(--primary-color); background: #EBF4FF; }
+        .locked { pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="setup-screen" class="container active">
+        <h2>إعداد الاختبار</h2>
+        <div class="setting-group">
+            <span class="group-label">اختر القسم:</span>
+            <div class="grid-options" id="category-selector">
+                <button class="chip active" data-value="all">المنهج كامل</button>
+                <button class="chip" data-value="gen">اسئلة محاضرات د رانيا</button>
+
+            </div>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">نظام الأسئلة:</span>
+            <div class="chip-grid" id="order-selector">
+                <button class="chip active" data-value="fixed">ثابت (كل اسئلة القسم المختار)</button>
+                <button class="chip" data-value="random">ترتيب عشوائى (ادخل عدد الاسئلة)</button>
+            </div>
+        </div>
+        <div id="num-section" class="setting-group" style="display: none;">
+            <span class="group-label">العدد:</span>
+            <input type="number" id="num-input">
+            <span class="max-hint" id="max-label"></span>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">النمط:</span>
+            <div class="chip-grid" id="mode-combined">
+                <button class="chip active" data-value="exam_all">اختبار (كل الاسئلة فى ورقة واحدة)</button>
+                <button class="chip" data-value="study_one">مذاكرة (عرض سؤال بسؤال)</button>
+            </div>
+        </div>
+        <button class="start-btn" onclick="initQuiz()">ابدأ المراجعة</button>
+    </div>
+
+    <div id="quiz-screen" class="container">
+        <div id="quiz-content"></div>
+        <button id="submit-btn" class="start-btn" style="display:none" onclick="handleFullSubmit()">إنهاء</button>
+        <button id="next-btn" class="start-btn" style="display:none" onclick="nextQuestion()">التالي</button>
+        <p id="q-counter" style="text-align:center; margin-top:10px;"></p>
+    </div>
+
+    <div id="result-screen" class="container">
+        <h2 id="res-title">النتيجة</h2>
+        <p id="res-msg" style="text-align:center; font-size:1.5rem;"></p>
+        <div id="mistakes-report"></div>
+        <button class="start-btn" onclick="location.reload()">العودة</button>
+    </div>
+
+    <script>
+        const db = [{"cat":"gen","q":"إنشاء بوابات إلكترونية لتقديم الخدمات يدرج ضمن إنجازات مرحلة تبادل المنفعة والقيمة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الأهداف المحددة الواضحة سمة تميز التخطيط التقليدي، بينما الأهداف العامة المرنة تميز التخطيط الإلكتروني.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الإدارة الإلكترونية هي الإدارة التي توظف جزء من الطاقات البشرية والمادية والتقنية المتاحة لتحقيق الأهداف المرجوة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الاعتماد على التنظيمات الجامدة يعتبر أحد عوامل نجاح الإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الانتقال من التنظيم الهرمي إلى التنظيم الشبكي أحد عوامل تطبيق الإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"البنية التحتية للإدارة الإلكترونية هي الجانب الغير محسوس في الإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"التخطيط الإلكتروني نظام ستاتيكي في اتجاه الاهداف الواسعة والمرنة والقابلة للتطوير المستمر.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الحكومة الإلكترونية هي استخدام غير تكاملي فعال للأنظمة التكنولوجية المعلوماتية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الخدمات المباشرة تعتبر جزء من إعادة التصميم الشامل لتوصيل المعلومات والخدمات الحكومية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الخوف من التغيير ومقاومته يمثل أحد العوامل التي تعيق تطبيق الإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"الرقابة الإلكترونية أكثر اقترابا من الرقابة القائمة على الثقة.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"القضاء على البيروقراطية وتسهيل جميع المهام أهم أهداف الإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تتسم الإدارة التقليدية بتقليل تأثير العلاقات الشخصية على إنجاز الأعمال.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تحقيق اقتصاد متوازن يعتبر أحد اهم اهداف الحكومة الإلكترونية على مستوى الافراد.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تطوير النظم الأساسية. لنظم الاتصالات، من أهم ما جاءت به المرحلة الأولى من مراحل الحكومة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تعتبر التجارة الإلكترونية أول تطبيق للإدارة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"تعتبر الحكومة الإلكترونية تحول جزئي في الطرق التي تتبعها الحكومات المباشرة او التي تتبعها الحكومات لمباشرة عملها.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تعتبر قيادة الذات هي الأكثر بروزا في الإدارة الرقمية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"حل النزاع والشكاوى بشكل سريع يعتبر أحد اهم اهداف الحكومة الإلكترونية على مستوى قطاع الاعمال.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"سهولة تكوين صف ثاني وثالث مع تقليل الحاجة إلى العمالة يعتبر من مزايا مشروع الحكومة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"لا يعني التحول الى تطبيق الإدارة الإلكترونية الاستغناء عن العنصر البشري.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"لا يمكن التحول للإدارة الإلكترونية دون قناعة ودعم من الإدارة العليا","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"مقاومة التغيير يعتبر أحد المعوقات الامنية لتطبيق الحكومة الالكترونية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"مقتضيات الإصلاح الإداري لا يلزم المؤسسات الحكومية بنمط الشفافية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"من أهداف الحكومة الإلكترونية العمل على زيادة مستوى التعليم والتدريب بالقطاع الخاص فقط.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"من أهم أهداف الحكومة الإلكترونية على مستوى الحكومات تحسين وتطوير الأداء بشكل خاص.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"من اهم مزايا مشروع الحكومة الإلكترونية بالنسبة للحكومة التكامل مع القطاع العام في التعامل الالكتروني.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"وضع برنامج للتطوير الإداري والتنفيذي والتنظيم من أهم العوامل اللي ساهمت في قيام الحكومة الإلكترونية.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يتم الانتقال في الإدارة الإلكترونية من النشاط الافتراضي إلى النشاط المادي.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يعتبر الخوف على المصالح، والجهل بآليات التغيير من أسباب مقاومة التغيير.","opts":["صح","خطأ"],"ans":0},{"cat":"gen","q":"يعتبر سد الفجوة الرقمية اهم اهداف الحكومة الإلكترونية.","opts":["صح","خطأ"],"ans":1}];
+        let state = { category: "all", order: "fixed", mode: "exam", view: "all", questions: [], score: 0, currentIdx: 0, mistakes: [] };
+
+        function updateMaxHint() {
+            const pool = (state.category === 'all') ? db : db.filter(q => q.cat === state.category);
+            document.getElementById('max-label').textContent = "المتاح: " + pool.length;
+            document.getElementById('num-input').max = pool.length;
+            document.getElementById('num-input').value = pool.length;
+        }
+
+        document.querySelectorAll('.chip').forEach(btn => {
+            btn.onclick = function() {
+                this.parentElement.querySelector('.active').classList.remove('active');
+                this.classList.add('active');
+                const val = this.dataset.value;
+                const pid = this.parentElement.id;
+                if(pid === 'category-selector') { state.category = val; updateMaxHint(); }
+                if(pid === 'order-selector') { 
+                    state.order = val; 
+                    document.getElementById('num-section').style.display = (val === 'random') ? 'block' : 'none';
+                    updateMaxHint();
+                }
+                if(pid === 'mode-combined') {
+                    state.mode = val.includes('exam') ? 'exam' : 'study';
+                    state.view = val.includes('all') ? 'all' : 'one';
+                }
+            };
+        });
+        updateMaxHint();
+
+        function initQuiz() {
+            let pool = (state.category === 'all') ? [...db] : db.filter(q => q.cat === state.category);
+            let num = (state.order === 'fixed') ? pool.length : (parseInt(document.getElementById('num-input').value) || pool.length);
+            if(state.order === 'random') pool.sort(() => Math.random() - 0.5);
+            state.questions = pool.slice(0, num);
+            document.getElementById('setup-screen').classList.remove('active');
+            document.getElementById('quiz-screen').classList.add('active');
+            if(state.view === 'all') renderAll(); else showOne();
+        }
+
+        function renderAll() {
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '';
+            state.questions.forEach((q, idx) => {
+                const block = document.createElement('div');
+                block.className = 'question-block';
+                block.innerHTML = '<div class="question-text">'+(idx+1)+'. '+q.q+'</div>';
+                const optsDiv = document.createElement('div');
+                q.opts.forEach((opt, oIdx) => {
+                    const div = document.createElement('div');
+                    div.className = 'option-item'; div.textContent = opt;
+                    div.onclick = () => {
+                        if(optsDiv.classList.contains('locked')) return;
+                        if(state.mode === 'study') {
+                            optsDiv.classList.add('locked');
+                            if(oIdx === q.ans) div.classList.add('correct');
+                            else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); }
+                        } else {
+                            optsDiv.querySelectorAll('.option-item').forEach(s => s.classList.remove('selected-temp'));
+                            div.classList.add('selected-temp');
+                        }
+                        q.userAns = oIdx;
+                    };
+                    optsDiv.appendChild(div);
+                });
+                block.appendChild(optsDiv);
+                cont.appendChild(block);
+            });
+            document.getElementById('submit-btn').style.display = 'block';
+        }
+
+        function showOne() {
+            const q = state.questions[state.currentIdx];
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '<div class="question-text">'+q.q+'</div><div id="opts"></div>';
+            document.getElementById('q-counter').textContent = 'سؤال ' + (state.currentIdx+1) + ' من ' + state.questions.length;
+            q.opts.forEach((opt, i) => {
+                const div = document.createElement('div');
+                div.className = 'option-item'; div.textContent = opt;
+                div.onclick = () => {
+                    const optsDiv = document.getElementById('opts');
+                    if(optsDiv.classList.contains('locked')) return;
+                    optsDiv.classList.add('locked');
+                    if(i === q.ans) { div.classList.add('correct'); state.score++; }
+                    else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); state.mistakes.push({q:q.q, a:q.opts[q.ans]}); }
+                    document.getElementById('next-btn').style.display = 'block';
+                };
+                document.getElementById('opts').appendChild(div);
+            });
+        }
+
+        function nextQuestion() {
+            state.currentIdx++;
+            if(state.currentIdx < state.questions.length) { showOne(); document.getElementById('next-btn').style.display='none'; }
+            else showResult();
+        }
+
+        function handleFullSubmit() {
+            if(state.mode === 'exam') {
+                state.score = 0; state.mistakes = [];
+                state.questions.forEach(q => {
+                    if(q.userAns === q.ans) state.score++;
+                    else state.mistakes.push({q:q.q, a:q.opts[q.ans]});
+                });
+            }
+            showResult();
+        }
+
+        function showResult() {
+            document.getElementById('quiz-screen').classList.remove('active');
+            document.getElementById('result-screen').classList.add('active');
+            document.getElementById('res-msg').textContent = state.score + " / " + state.questions.length;
+            const report = document.getElementById('mistakes-report');
+            report.innerHTML = state.mistakes.map(m => '<div style="background:#FFF5F5; padding:10px; margin-bottom:10px; border-radius:8px; border-right:4px solid #F56565"><b>س:</b> '+m.q+'<br><span style="color:green"><b>الصح:</b> '+m.a+'</span></div>').join('');
+        }
+    </script>
+</body>
+</html>

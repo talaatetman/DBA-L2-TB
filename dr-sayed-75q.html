@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار ذكي</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        :root { --primary-color: #5145BA; --success-color: #28a745; --error-color: #dc3545; --bg-color: #f4f4f9; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background: var(--primary-color); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .container { background: white; width: 100%; max-width: 570px; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: none; }
+        .container.active { display: block; }
+        h2 { color: var(--primary-color); margin-bottom: 20px; text-align: center; }
+        .setting-group { margin-bottom: 20px; }
+        .group-label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 0.95rem; }
+        .grid-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .chip { padding: 10px; border: 2px solid #ddd; background: white; cursor: pointer; border-radius: 8px; transition: 0.3s; text-align: center; font-weight: 500;}
+        .chip.active { border-color: var(--primary-color); background: #EEF2FF; color: var(--primary-color); font-weight: 900; }
+        input { width: 100%; padding: 12px; border: 2px solid #EDF2F7; border-radius: 12px; font-size: 1rem; margin-top: 5px; outline: none; }
+        .max-hint { display: block; font-size: 0.8rem; color: #718096; margin-top: 5px; }
+        .start-btn { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 15px; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        .question-block { margin-bottom: 25px; }
+        .question-text { font-size: 1.2rem; margin-bottom: 20px; color: #444; font-weight: bold; line-height: 1.4; }
+        .option-item { padding: 14px; border: 2px solid #EDF2F7; margin-bottom: 10px; border-radius: 12px; cursor: pointer; }
+        .option-item.correct { background: #C6F6D5; border-color: #48BB78; color: #22543D; }
+        .option-item.incorrect { background: #FED7D7; border-color: #F56565; color: #742A2A; }
+        .option-item.selected-temp { border-color: var(--primary-color); background: #EBF4FF; }
+        .locked { pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="setup-screen" class="container active">
+        <h2>إعداد الاختبار</h2>
+        <div class="setting-group">
+            <span class="group-label">اختر القسم:</span>
+            <div class="grid-options" id="category-selector">
+                <button class="chip active" data-value="all">المنهج كامل</button>
+                <button class="chip" data-value="gen">دراسات متقمة - موارد بشرية - د سيد جاد</button>
+
+            </div>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">نظام الأسئلة:</span>
+            <div class="chip-grid" id="order-selector">
+                <button class="chip active" data-value="fixed">ثابت (كل اسئلة القسم المختار)</button>
+                <button class="chip" data-value="random">ترتيب عشوائى (ادخل عدد الاسئلة)</button>
+            </div>
+        </div>
+        <div id="num-section" class="setting-group" style="display: none;">
+            <span class="group-label">العدد:</span>
+            <input type="number" id="num-input">
+            <span class="max-hint" id="max-label"></span>
+        </div>
+        <div class="setting-group">
+            <span class="group-label">النمط:</span>
+            <div class="chip-grid" id="mode-combined">
+                <button class="chip active" data-value="exam_all">اختبار (كل الاسئلة فى ورقة واحدة)</button>
+                <button class="chip" data-value="study_one">مذاكرة (عرض سؤال بسؤال)</button>
+            </div>
+        </div>
+        <button class="start-btn" onclick="initQuiz()">ابدأ المراجعة</button>
+    </div>
+
+    <div id="quiz-screen" class="container">
+        <div id="quiz-content"></div>
+        <button id="submit-btn" class="start-btn" style="display:none" onclick="handleFullSubmit()">إنهاء</button>
+        <button id="next-btn" class="start-btn" style="display:none" onclick="nextQuestion()">التالي</button>
+        <p id="q-counter" style="text-align:center; margin-top:10px;"></p>
+    </div>
+
+    <div id="result-screen" class="container">
+        <h2 id="res-title">النتيجة</h2>
+        <p id="res-msg" style="text-align:center; font-size:1.5rem;"></p>
+        <div id="mistakes-report"></div>
+        <button class="start-btn" onclick="location.reload()">العودة</button>
+    </div>
+
+    <script>
+        const db = [{"cat":"gen","q":"تعتبر عملية التعلم عنصراً ثانوياً في تقدم المنظمات الحديثة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"منظمات التعلم هي التي يتوسع فيها الأفراد باستمرار في استخدام طاقاتهم لخلق النتائج المرغوبة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يركز \"بيتر سينج\" في مفاهيمه الخمسة على الإبداع الشخصي والتفكير المنظومي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"من أوصاف منظمات التعلم قبول فكرة الحث الإبداعي كمصدر للقوة والتجديد.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الإبداع هو القدرة على وضع الأفكار الجديدة موضع التنفيذ الفعلي في السوق.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يؤدي جهل الإدارة وبطء الممارسات التنظيمية إلى تقييد القدرات الإبداعية للأفراد.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يقتصر إبداع العمليات على خلق سلع وخدمات جديدة فقط.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تعتبر التجربة والخطأ طريقاً مهماً للاكتشاف في المنظمات المبدعة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الابتكار هو عملية خلق الأفكار الجديدة ووضعها موضع التنفيذ الفعلي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تتضمن مرحلة التجريب الأولي في الابتكار اختبار الأفكار في شكل \"نموذج أولي\".","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تعاقب المنظمات الرائدة في الابتكار مثل 3M العاملين عند فشل تجاربهم الإبداعية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تعتمد المنظمات المبدعة على الهياكل البيروقراطية الرأسية المعقدة لتنظيم العمل.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"مولد الفكرة هو الشخص الذي يمتلك البراعة والتخيل لخلق منهج جديد للأشياء.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يقتصر دور حراس المعلومات على نقل المعرفة من داخل المنظمة إلى البيئة الخارجية فقط.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يعتبر التغيير أمراً محتوماً وضرورياً في عصرنا الحالي لتحقيق الإبداع.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يميل مديرو \"الوضع الراهن\" إلى تحمل المخاطر واقتناص الفرص الجديدة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"التغيير من أعلى إلى أسفل قد يعاني من مقاومة حادة لعدم إدراكه حاجات المستويات الأدنى.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يعتبر التغيير من أسفل إلى أعلى هو الأساس الحقيقي للابتكار التنظيمي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"التغيير غير المخطط يحدث دائماً بتدخل مباشر ومسبق من مسئولي التغيير.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"فجوة الأداء هي الفرق بين الأداء المخطط والمرغوب فيه وبين الأداء الفعلي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يشمل مجال التغيير التكنولوجي تطوير العمليات المستخدمة في دعم تصميم الوظائف.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"مرحلة \"إعداد نظام التغيير\" (Unfreezing) تهدف لجعل الأفراد مستعدين للتخلي عن العادات القديمة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"استراتيجية \"القوة والإجبار\" تضمن التزام الأفراد بالتغيير في الأجل الطويل.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يهدف التطوير التنظيمي (OD) إلى تحسين قدرة المنظمة على حل مشكلاتها وزيادة كفاءتها.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"التدريب الحساس (T-Groups) يستهدف تحسين الكفاءة على مستوى المنظمة ككل.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الوقت مورد استراتيجي يمكن تخزينه واسترجاعه عند الحاجة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"إدارة الوقت قضية استراتيجية ترسم مخرجات الأفراد والمنظمات وليست مجرد مهارة فردية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الناس متساوون في مقدار الوقت الذي يملكونه لكنهم يختلفون في كيفية استثماره.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تنص قاعدة \"باريتو\" على أن 20% من النتائج تأتي من 80% من المهام.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الهدف من إدارة الوقت هو استغلال الحاضر والاستعداد للمستقبل لتقليل الأزمات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"اللامبالاة وضعف القيم الشخصية من الأسباب التنظيمية لهدر الوقت.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يضيع المدير في المتوسط 3.75 ساعة يومياً في أنشطة غير منتجة وفق بعض الدراسات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يعتبر مدخل \"مدير الدقيقة الواحدة\" أسلوباً يركز على وضوح الأهداف والتغذية الراجعة السريعة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تأنيب الدقيقة الواحدة يجب أن يركز على شخص الموظف وليس على أدائه المهني.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"أتمتة المستندات والمعلومات تساهم في تقليل الوقت الضائع في البحث عن البيانات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تعني \"الإدارة بالاستثناء\" تركيز المدير على كافة التفاصيل الروتينية اليومية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"التخطيط الزمني الفعال يتطلب قوائم بالأنشطة تشمل المدى القصير والطويل.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يجب ترتيب الأولويات في جدول العمل وفق الأهمية والترتيب المنطقي للتنفيذ.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الرقابة على الوقت تشمل تحديد معايير زمنية للمهام وقياس الإنجاز الفعلي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"غياب العدالة التنظيمية يؤدي إلى زيادة الصراعات وإهدار الوقت الإداري.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"المدخل البيئي لإدارة الوقت لا علاقة له بتشريعات الدولة أو كفاءة المواصلات.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"سبق المنهج الإسلامي المناهج الحديثة في تعظيم قيمة الوقت وربطه بالعبادات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"أقسم الله عز وجل في القرآن بالزمان (الليل، العصر، الضحى) دلالة على أهميته.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"السنة النبوية تؤكد على مبدأ التوازن بين العمل والراحة بمفهوم \"ساعة وساعة\".","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يفضل تأجيل المهام الصعبة في العمل إلى الغد دائماً لزيادة التركيز.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يعتبر البريد الوارد والصادر جزءاً من الجدول الصباحي النموذجي للمدير.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تفويض الأعمال الروتينية للمساعدين يعطل المدير عن أداء مهامه الاستراتيجية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الرقابة الذاتية هي أحد أهم ثمار المنهج الإسلامي في إدارة الوقت.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"مصفوفة تحويل الأفكار إلى ممارسة تعتمد فقط على الضبط الفردي دون الحاجة لقيادة فعالة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الوقت كأصل استراتيجي يساهم في صنع ميزة تنافسية مستدامة للمنظمة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الأخلاقيات التنظيمية هي مجموعة القيم والمعايير التي تحكم سلوك الأفراد داخل المنظمة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يقتصر تأثير الأخلاقيات على العلاقات الداخلية بين الموظفين ولا يمتد للعملاء.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تسمى الالتزامات الواضحة كالحضور والانصراف بالأنماط الأخلاقية الصريحة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الالتزام بأخلاق العمل يقلل من ثقة أصحاب المصلحة في المنظمة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"القيادة الأخلاقية تعني وضع المعايير وتوضيح السلوكيات المطلوبة من الجميع.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"دعم الإدارة العليا هو العنصر الأكثر تأثيراً في بناء الأخلاق التنظيمية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الاتصالات المفتوحة تعيق الشفافية وتؤدي إلى غموض القيم الأخلاقية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تهدف قيادة التحول إلى نقل المنظمة من وضعها الحالي إلى وضع أفضل.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يتميز قائد التحول بقدرته على إلهام العاملين وتعزيز القيم الإنسانية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"تعتبر \"العدالة\" و\"الشفافية\" من الخصائص الجوهرية لقائد التحول.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الثقافة التنظيمية لا تلعب أي دور في تعزيز الاستقرار الاجتماعي داخل العمل.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"يستخدم القادة أنظمة المكافآت كآلية لبناء الثقافة الأخلاقية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"القدوة والسلوك الشخصي للقائد هما المحرك الأساسي لتبني العاملين للأخلاق.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"المسؤولية الاجتماعية هي مجموعة خدمات تقدمها المنظمة بناءً على إلزام قانوني صارم.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"توفير دور حضانة وبرامج رعاية صحية للعاملين يعد من أمثلة المسؤولية الاجتماعية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"احترام حرية العقيدة والرأي يندرج تحت مفهوم المسؤولية الأخلاقية للمنظمات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"المسؤولية الأخلاقية تبيح للمنظمة تمييزاً طفيفاً بين العاملين بناءً على العرق.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"الالتزام بالإنتاج عالي الجودة هو جزء من المسؤولية الأخلاقية تجاه المجتمع.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"قيادة التحول تركز فقط على التكنولوجيا وتهمل احتياجات الأفراد النفسية.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"بناء الثقة المتبادلة هو أحد مخرجات العلاقة الناجحة بين القيادة والثقافة.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"الأخلاقيات التنظيمية تساهم بشكل مباشر في تحقيق التميز التنافسي.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"سياسة الأخلاق الواضحة يجب أن تحدد القواعد التي تحكم اتخاذ القرارات.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"معظم المديرين -حسب الدراسات- يقللون من شأن الأخلاقيات في نجاح المنظمة.","opts":["صح","خطأ"],"ans":1},{"cat":"gen","q":"تسهم الثقافة التنظيمية في سرعة الاستجابة للقرارات الإدارية.","opts":["صح","خطأ",""],"ans":0},{"cat":"gen","q":"يقتصر مفهوم الأخلاقيات على القيادة العليا فقط ولا يشمل كافة المستويات.","opts":["صح","خطأ"],"ans":1}];
+        let state = { category: "all", order: "fixed", mode: "exam", view: "all", questions: [], score: 0, currentIdx: 0, mistakes: [] };
+
+        function updateMaxHint() {
+            const pool = (state.category === 'all') ? db : db.filter(q => q.cat === state.category);
+            document.getElementById('max-label').textContent = "المتاح: " + pool.length;
+            document.getElementById('num-input').max = pool.length;
+            document.getElementById('num-input').value = pool.length;
+        }
+
+        document.querySelectorAll('.chip').forEach(btn => {
+            btn.onclick = function() {
+                this.parentElement.querySelector('.active').classList.remove('active');
+                this.classList.add('active');
+                const val = this.dataset.value;
+                const pid = this.parentElement.id;
+                if(pid === 'category-selector') { state.category = val; updateMaxHint(); }
+                if(pid === 'order-selector') { 
+                    state.order = val; 
+                    document.getElementById('num-section').style.display = (val === 'random') ? 'block' : 'none';
+                    updateMaxHint();
+                }
+                if(pid === 'mode-combined') {
+                    state.mode = val.includes('exam') ? 'exam' : 'study';
+                    state.view = val.includes('all') ? 'all' : 'one';
+                }
+            };
+        });
+        updateMaxHint();
+
+        function initQuiz() {
+            let pool = (state.category === 'all') ? [...db] : db.filter(q => q.cat === state.category);
+            let num = (state.order === 'fixed') ? pool.length : (parseInt(document.getElementById('num-input').value) || pool.length);
+            if(state.order === 'random') pool.sort(() => Math.random() - 0.5);
+            state.questions = pool.slice(0, num);
+            document.getElementById('setup-screen').classList.remove('active');
+            document.getElementById('quiz-screen').classList.add('active');
+            if(state.view === 'all') renderAll(); else showOne();
+        }
+
+        function renderAll() {
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '';
+            state.questions.forEach((q, idx) => {
+                const block = document.createElement('div');
+                block.className = 'question-block';
+                block.innerHTML = '<div class="question-text">'+(idx+1)+'. '+q.q+'</div>';
+                const optsDiv = document.createElement('div');
+                q.opts.forEach((opt, oIdx) => {
+                    const div = document.createElement('div');
+                    div.className = 'option-item'; div.textContent = opt;
+                    div.onclick = () => {
+                        if(optsDiv.classList.contains('locked')) return;
+                        if(state.mode === 'study') {
+                            optsDiv.classList.add('locked');
+                            if(oIdx === q.ans) div.classList.add('correct');
+                            else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); }
+                        } else {
+                            optsDiv.querySelectorAll('.option-item').forEach(s => s.classList.remove('selected-temp'));
+                            div.classList.add('selected-temp');
+                        }
+                        q.userAns = oIdx;
+                    };
+                    optsDiv.appendChild(div);
+                });
+                block.appendChild(optsDiv);
+                cont.appendChild(block);
+            });
+            document.getElementById('submit-btn').style.display = 'block';
+        }
+
+        function showOne() {
+            const q = state.questions[state.currentIdx];
+            const cont = document.getElementById('quiz-content');
+            cont.innerHTML = '<div class="question-text">'+q.q+'</div><div id="opts"></div>';
+            document.getElementById('q-counter').textContent = 'سؤال ' + (state.currentIdx+1) + ' من ' + state.questions.length;
+            q.opts.forEach((opt, i) => {
+                const div = document.createElement('div');
+                div.className = 'option-item'; div.textContent = opt;
+                div.onclick = () => {
+                    const optsDiv = document.getElementById('opts');
+                    if(optsDiv.classList.contains('locked')) return;
+                    optsDiv.classList.add('locked');
+                    if(i === q.ans) { div.classList.add('correct'); state.score++; }
+                    else { div.classList.add('incorrect'); optsDiv.children[q.ans].classList.add('correct'); state.mistakes.push({q:q.q, a:q.opts[q.ans]}); }
+                    document.getElementById('next-btn').style.display = 'block';
+                };
+                document.getElementById('opts').appendChild(div);
+            });
+        }
+
+        function nextQuestion() {
+            state.currentIdx++;
+            if(state.currentIdx < state.questions.length) { showOne(); document.getElementById('next-btn').style.display='none'; }
+            else showResult();
+        }
+
+        function handleFullSubmit() {
+            if(state.mode === 'exam') {
+                state.score = 0; state.mistakes = [];
+                state.questions.forEach(q => {
+                    if(q.userAns === q.ans) state.score++;
+                    else state.mistakes.push({q:q.q, a:q.opts[q.ans]});
+                });
+            }
+            showResult();
+        }
+
+        function showResult() {
+            document.getElementById('quiz-screen').classList.remove('active');
+            document.getElementById('result-screen').classList.add('active');
+            document.getElementById('res-msg').textContent = state.score + " / " + state.questions.length;
+            const report = document.getElementById('mistakes-report');
+            report.innerHTML = state.mistakes.map(m => '<div style="background:#FFF5F5; padding:10px; margin-bottom:10px; border-radius:8px; border-right:4px solid #F56565"><b>س:</b> '+m.q+'<br><span style="color:green"><b>الصح:</b> '+m.a+'</span></div>').join('');
+        }
+    </script>
+</body>
+</html>
